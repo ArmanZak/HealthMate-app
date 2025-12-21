@@ -1,4 +1,4 @@
-# 🧬 HealthMeta AI v3.0
+# 🧬 HealthMeta 
 
 HealthMeta AI is an intelligent health & fitness dashboard that uses **Google Gemini AI** to generate personalized workout schedules and nutrition plans based on user biometrics.
 
@@ -24,4 +24,5 @@ HealthMeta AI is an intelligent health & fitness dashboard that uses **Google Ge
 ## ▶️ How to Run
 Run the application using Streamlit:
 ```bash
+
 python -m streamlit run app.py
