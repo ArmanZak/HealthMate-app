@@ -5,18 +5,18 @@ import json
 from datetime import datetime, timedelta
 
 # ==========================================
-# 🚨 DIRECT KEY CONFIGURATION (Emergency Fix)
+# 🚨 FINAL CONFIGURATION
 # ==========================================
-# We are putting the key directly here to ensure it works.
-API_KEY = "AIzaSyAx_cobNaiKZKOzgCxdQFHhxec-6WvNQ-Q"
+# I have added the key from your screenshot so it connects immediately.
+API_KEY = "AIzaSyBvEjUJI-AVmvw7o9x2CdLOkk1VRmKRdiE"
 
 try:
     genai.configure(api_key=API_KEY)
 except Exception as e:
-    st.error(f"CRITICAL API ERROR: {e}")
+    st.error(f"Key Error: {e}")
 
 # ==========================================
-# 1. HEALTH SCORE CALCULATION
+# 1. HEALTH SCORE
 # ==========================================
 def calculate_health_score(bmi, steps, sleep, heart_rate):
     score = 80
@@ -29,7 +29,7 @@ def calculate_health_score(bmi, steps, sleep, heart_rate):
     return int(max(0, min(score, 100)))
 
 # ==========================================
-# 2. HISTORY TRACKER (Data for the Graph)
+# 2. HISTORY (Graph Data)
 # ==========================================
 def get_user_history(name):
     today = datetime.now()
@@ -42,43 +42,47 @@ def get_user_history(name):
     return pd.DataFrame(data)
 
 # ==========================================
-# 3. AI DIET GENERATOR
+# 3. AI DIET (Fixed Model Name)
 # ==========================================
 def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, activity):
-    # Quick Math
+    # Math
     if gender == "Male": bmr = 10 * weight + 6.25 * height - 5 * age + 5
     else: bmr = 10 * weight + 6.25 * height - 5 * age - 161
-    
-    tdee = bmr * 1.2 # simplified activity
+    tdee = bmr * 1.2
     target_calories = int(tdee - 500) if goal == "Weight Loss" else int(tdee)
 
     # Prompt
     prompt = f"""
-    Create a daily diet for: {age}y, {gender}, {weight}kg.
+    Act as a nutritionist. Create a daily diet for: {age}y, {gender}, {weight}kg.
     Preference: {veg_nonveg}. Goal: {goal}. Calories: {target_calories}.
-    Return ONLY a JSON array: [{{"Meal": "...", "Option A": "...", "Option B": "...", "Calories": 0}}]
+    Return ONLY a JSON array with keys: "Meal", "Option A", "Option B", "Calories".
+    Do not use markdown.
+    Example: [{{"Meal": "Breakfast", "Option A": "Oats", "Option B": "Eggs", "Calories": 300}}]
     """
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # SWITCHED TO 'gemini-pro' TO FIX THE 404 ERROR
+        model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         text = response.text.replace("```json", "").replace("```", "").strip()
         data = json.loads(text)
         return pd.DataFrame(data), f"✅ Success! ({target_calories} kcal)", target_calories
     except Exception as e:
-        # If this fails, it prints the EXACT error causing the issue
-        return pd.DataFrame(), f"AI DIET FAILED: {str(e)}", 0
+        return pd.DataFrame(), f"AI Error: {str(e)}", 0
 
 # ==========================================
-# 4. AI WORKOUT GENERATOR
+# 4. AI WORKOUT (Fixed Model Name)
 # ==========================================
 def generate_workout_plan(name, age, gender, weight, height, goal):
     prompt = f"""
-    Create a weekly workout for: {gender}, {goal}.
-    Return ONLY a JSON array: [{{"Day": "...", "Focus Area": "...", "Exercises": "..."}}]
+    Act as a trainer. Create a weekly workout for: {gender}, {goal}.
+    Return ONLY a JSON array with keys: "Day", "Focus Area", "Exercises".
+    Do not use markdown.
+    Example: [{{"Day": "Mon", "Focus Area": "Chest", "Exercises": "Pushups 3x10"}}]
     """
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # SWITCHED TO 'gemini-pro' TO FIX THE 404 ERROR
+        model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         text = response.text.replace("```json", "").replace("```", "").strip()
         data = json.loads(text)
