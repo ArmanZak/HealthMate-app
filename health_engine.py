@@ -4,49 +4,36 @@ import google.generativeai as genai
 import json
 from datetime import datetime, timedelta
 
-# 1. CONFIGURE AI KEY
+# ==========================================
+# 🚨 DIRECT KEY CONFIGURATION (Emergency Fix)
+# ==========================================
+# We are putting the key directly here to ensure it works.
+API_KEY = "AIzaSyAx_cobNaiKZKOzgCxdQFHhxec-6WvNQ-Q"
+
 try:
-    if "GOOGLE_API_KEY" in st.secrets:
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    else:
-        pass
+    genai.configure(api_key=API_KEY)
 except Exception as e:
-    st.error(f"API Key Error: {e}")
+    st.error(f"CRITICAL API ERROR: {e}")
 
 # ==========================================
-# PART 1: HEALTH SCORE CALCULATION
+# 1. HEALTH SCORE CALCULATION
 # ==========================================
 def calculate_health_score(bmi, steps, sleep, heart_rate):
-    """
-    Calculates a simple health score (0-100)
-    """
-    score = 80 # Base score
-    
-    # Steps Adjustment
+    score = 80
     if steps > 10000: score += 10
     elif steps < 5000: score -= 10
-    
-    # Sleep Adjustment
     if 7 <= sleep <= 9: score += 10
     elif sleep < 6: score -= 10
-    
-    # BMI Adjustment
     if 18.5 <= bmi <= 25: score += 5
     else: score -= 5
-    
-    # Ensure 0-100 range
     return int(max(0, min(score, 100)))
 
 # ==========================================
-# PART 2: HISTORY TRACKER
+# 2. HISTORY TRACKER (Data for the Graph)
 # ==========================================
 def get_user_history(name):
-    """
-    Generates dummy history data so the graph doesn't crash.
-    """
     today = datetime.now()
     dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-    
     data = {
         "Date": list(reversed(dates)),
         "Calories": [2100, 2300, 1950, 2200, 2400, 2150, 2000],
@@ -55,90 +42,46 @@ def get_user_history(name):
     return pd.DataFrame(data)
 
 # ==========================================
-# PART 3: AI DIET GENERATOR
+# 3. AI DIET GENERATOR
 # ==========================================
 def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, activity):
-    # Math for Calories
-    if gender == "Male":
-        bmr = 10 * weight + 6.25 * height - 5 * age + 5
-    else:
-        bmr = 10 * weight + 6.25 * height - 5 * age - 161
+    # Quick Math
+    if gender == "Male": bmr = 10 * weight + 6.25 * height - 5 * age + 5
+    else: bmr = 10 * weight + 6.25 * height - 5 * age - 161
+    
+    tdee = bmr * 1.2 # simplified activity
+    target_calories = int(tdee - 500) if goal == "Weight Loss" else int(tdee)
 
-    activity_multipliers = {
-        "Sedentary (Little/no exercise)": 1.2,
-        "Lightly active": 1.375,
-        "Moderately active": 1.55,
-        "Very active": 1.725
-    }
-    tdee = bmr * activity_multipliers.get(activity, 1.2)
-
-    if goal == "Weight Loss":
-        target_calories = int(tdee - 500)
-    elif goal == "Muscle Gain":
-        target_calories = int(tdee + 400)
-    else:
-        target_calories = int(tdee)
-
-    # AI Prompt
+    # Prompt
     prompt = f"""
-    Act as a professional nutritionist. Create a daily diet plan for:
-    - Profile: {age}y, {gender}, {weight}kg, {height}cm
-    - Diet Preference: {veg_nonveg}
-    - Goal: {goal}
-    - Target Calories: {target_calories} kcal
-    
-    Return ONLY a valid JSON array with exactly these keys: "Meal", "Option A ({veg_nonveg})", "Option B (Alternative)", "Calories".
-    Do not add any markdown formatting like ```json.
-    
-    Example format:
-    [
-        {{"Meal": "Breakfast", "Option A (Veg)": "Oatmeal", "Option B (Non-Veg)": "Eggs", "Calories": 350}}
-    ]
+    Create a daily diet for: {age}y, {gender}, {weight}kg.
+    Preference: {veg_nonveg}. Goal: {goal}. Calories: {target_calories}.
+    Return ONLY a JSON array: [{{"Meal": "...", "Option A": "...", "Option B": "...", "Calories": 0}}]
     """
-
+    
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
-        clean_json = response.text.replace("```json", "").replace("```", "").strip()
-        data = json.loads(clean_json)
-        return pd.DataFrame(data), f"✅ AI Custom Diet Generated ({target_calories} kcal)", target_calories
-
+        text = response.text.replace("```json", "").replace("```", "").strip()
+        data = json.loads(text)
+        return pd.DataFrame(data), f"✅ Success! ({target_calories} kcal)", target_calories
     except Exception as e:
-        return pd.DataFrame({
-            "Meal": ["Error", "Error"],
-            "Option A": ["System Error", "Check Secrets"],
-            "Option B": ["System Error", "Check Secrets"],
-            "Calories": [0, 0]
-        }), f"❌ AI DIET FAILED: {str(e)}", 0
+        # If this fails, it prints the EXACT error causing the issue
+        return pd.DataFrame(), f"AI DIET FAILED: {str(e)}", 0
 
 # ==========================================
-# PART 4: AI WORKOUT GENERATOR
+# 4. AI WORKOUT GENERATOR
 # ==========================================
 def generate_workout_plan(name, age, gender, weight, height, goal):
     prompt = f"""
-    Act as a fitness trainer. Create a weekly workout schedule for:
-    - {gender}, {age} years old, {weight}kg
-    - Goal: {goal}
-    
-    Return ONLY a valid JSON array with keys: "Day", "Focus Area", "Exercises".
-    Do not add any markdown formatting like ```json.
-    
-    Example format:
-    [
-        {{"Day": "Mon", "Focus Area": "Chest", "Exercises": "Pushups 3x12"}}
-    ]
+    Create a weekly workout for: {gender}, {goal}.
+    Return ONLY a JSON array: [{{"Day": "...", "Focus Area": "...", "Exercises": "..."}}]
     """
-
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
-        clean_json = response.text.replace("```json", "").replace("```", "").strip()
-        data = json.loads(clean_json)
+        text = response.text.replace("```json", "").replace("```", "").strip()
+        data = json.loads(text)
         return pd.DataFrame(data)
-
     except Exception as e:
-        return pd.DataFrame({
-            "Day": ["Error"], 
-            "Focus Area": ["AI Connection Failed"], 
-            "Exercises": [f"Error: {str(e)}"]
-        })
+        return pd.DataFrame({"Day": ["Error"], "Focus Area": ["Connection Failed"], "Exercises": [str(e)]})
