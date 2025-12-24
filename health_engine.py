@@ -5,18 +5,19 @@ import json
 from datetime import datetime, timedelta
 
 # ==========================================
-# 🚨 FINAL CONFIGURATION
+# 1. SECURE CONNECTION
 # ==========================================
-# I have added the key from your screenshot so it connects immediately.
-API_KEY = "AIzaSyBvEjUJI-AVmvw7o9x2CdLOkk1VRmKRdiE"
-
 try:
-    genai.configure(api_key=API_KEY)
+    # This grabs the key you saved in the Streamlit "Secrets" menu
+    if "GOOGLE_API_KEY" in st.secrets:
+        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    else:
+        st.error("🚨 Missing API Key. Please add GOOGLE_API_KEY to Streamlit Secrets.")
 except Exception as e:
-    st.error(f"Key Error: {e}")
+    st.error(f"Configuration Error: {e}")
 
 # ==========================================
-# 1. HEALTH SCORE
+# 2. HEALTH SCORE
 # ==========================================
 def calculate_health_score(bmi, steps, sleep, heart_rate):
     score = 80
@@ -29,7 +30,7 @@ def calculate_health_score(bmi, steps, sleep, heart_rate):
     return int(max(0, min(score, 100)))
 
 # ==========================================
-# 2. HISTORY (Graph Data)
+# 3. HISTORY TRACKER
 # ==========================================
 def get_user_history(name):
     today = datetime.now()
@@ -42,10 +43,10 @@ def get_user_history(name):
     return pd.DataFrame(data)
 
 # ==========================================
-# 3. AI DIET (Fixed Model Name)
+# 4. AI DIET (Using gemini-pro)
 # ==========================================
 def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, activity):
-    # Math
+    # Quick Math
     if gender == "Male": bmr = 10 * weight + 6.25 * height - 5 * age + 5
     else: bmr = 10 * weight + 6.25 * height - 5 * age - 161
     tdee = bmr * 1.2
@@ -61,7 +62,7 @@ def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, act
     """
     
     try:
-        # SWITCHED TO 'gemini-pro' TO FIX THE 404 ERROR
+        # Switched to 'gemini-pro' to fix the "Model not found" error
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         text = response.text.replace("```json", "").replace("```", "").strip()
@@ -71,7 +72,7 @@ def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, act
         return pd.DataFrame(), f"AI Error: {str(e)}", 0
 
 # ==========================================
-# 4. AI WORKOUT (Fixed Model Name)
+# 5. AI WORKOUT (Using gemini-pro)
 # ==========================================
 def generate_workout_plan(name, age, gender, weight, height, goal):
     prompt = f"""
@@ -81,7 +82,7 @@ def generate_workout_plan(name, age, gender, weight, height, goal):
     Example: [{{"Day": "Mon", "Focus Area": "Chest", "Exercises": "Pushups 3x10"}}]
     """
     try:
-        # SWITCHED TO 'gemini-pro' TO FIX THE 404 ERROR
+        # Switched to 'gemini-pro'
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         text = response.text.replace("```json", "").replace("```", "").strip()
