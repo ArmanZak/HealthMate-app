@@ -7,34 +7,47 @@ from datetime import datetime, timedelta
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="HealthMeta", page_icon="🧬", layout="wide")
 
-# --- 1. DIRECT API CONNECTION (The "Fail-Safe") ---
-def get_gemini_response(api_key, prompt):
+# --- 1. THE "SKELETON KEY" CONNECTION ---
+def try_google_models(api_key, prompt):
     """
-    Sends a direct web request to Google. 
-    Bypasses library version issues completely.
+    Tries 3 different Google AI models in order.
+    If one fails (404), it automatically tries the next one.
     """
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    headers = {'Content-Type': 'application/json'}
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}]
-    }
+    # The list of doors to try
+    models_to_try = [
+        ("gemini-1.5-flash", "v1beta"), # 1. Fast & New
+        ("gemini-pro", "v1beta"),       # 2. Standard Beta
+        ("gemini-pro", "v1")            # 3. Old Reliable (Stable)
+    ]
     
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        
-        # Check if the key is wrong
-        if response.status_code == 400:
-            return None, "🚨 API Key Invalid. Check your key."
-        
-        # Check if the model is having issues
-        if response.status_code != 200:
-            return None, f"🚨 Google Error ({response.status_code}): {response.text}"
-            
-        return response.json(), "Success"
-    except Exception as e:
-        return None, f"🚨 Connection Error: {str(e)}"
+    last_error = ""
 
-# --- 2. LOGIC FUNCTIONS ---
+    for model_name, version in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/{version}/models/{model_name}:generateContent?key={api_key}"
+        headers = {'Content-Type': 'application/json'}
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        
+        try:
+            response = requests.post(url, headers=headers, json=payload)
+            
+            # If it works (Status 200), stop trying and return data
+            if response.status_code == 200:
+                return response.json(), f"Success ({model_name})"
+            
+            # If Key is wrong (400), stop immediately
+            if response.status_code == 400:
+                return None, "🚨 API Key Invalid. Please check your key."
+            
+            # If 404 (Model Not Found), just save error and loop to next model
+            last_error = f"Error {response.status_code}: {response.text}"
+            
+        except Exception as e:
+            last_error =str(e)
+
+    # If we tried all 3 and none worked:
+    return None, f"🚨 All AI Models Failed. Last error: {last_error}"
+
+# --- 2. DATA FUNCTIONS ---
 def calculate_health_score(bmi, steps, sleep, hr):
     score = 80
     if steps > 10000: score += 10
@@ -55,7 +68,7 @@ def get_user_history():
     }
     return pd.DataFrame(data)
 
-# --- 3. UI & APP STRUCTURE ---
+# --- 3. DASHBOARD UI ---
 st.title("🧬 HealthMeta")
 st.subheader("Your Real-Time AI Health Partner")
 
@@ -63,10 +76,8 @@ st.subheader("Your Real-Time AI Health Partner")
 with st.sidebar:
     st.header("🔑 API Setup")
     
-    # TRIPLE CHECK: Try finding the key in Secrets, or let user paste it
-    default_key = ""
-    if "GOOGLE_API_KEY" in st.secrets:
-        default_key = st.secrets["GOOGLE_API_KEY"]
+    # Try finding key in Secrets, else use text box
+    default_key = st.secrets["GOOGLE_API_KEY"] if "GOOGLE_API_KEY" in st.secrets else ""
     
     api_key = st.text_input("Google API Key", value=default_key, type="password")
     if not api_key:
@@ -88,7 +99,7 @@ with st.sidebar:
     
     run_ai = st.button("Run AI Analysis 🚀")
 
-# MAIN PAGE LOGIC
+# MAIN PAGE
 if run_ai:
     if not api_key:
         st.error("❌ Please enter an API Key in the sidebar.")
@@ -116,26 +127,24 @@ if run_ai:
 
     # DIET TAB
     with t1:
-        with st.spinner("Talking to Google..."):
+        with st.spinner("Finding the best AI model for you..."):
             prompt_diet = f"""
             Act as a nutritionist. Create a daily diet for: {age}y, {gender}, {weight}kg, Goal: {goal}, Diet: {veg_nonveg}.
             Return ONLY a JSON array: [{{"Meal": "...", "Option A": "...", "Option B": "...", "Calories": 0}}]
             Do not use markdown blocks. Just the JSON string.
             """
             
-            raw_data, msg = get_gemini_response(api_key, prompt_diet)
+            raw_data, msg = try_google_models(api_key, prompt_diet)
             
             if raw_data:
                 try:
-                    # Parse the nested JSON response from Google
                     text_content = raw_data['candidates'][0]['content']['parts'][0]['text']
                     clean_json = text_content.replace("```json", "").replace("```", "").strip()
                     diet_data = json.loads(clean_json)
-                    st.success("✅ AI Diet Generated!")
+                    st.success(f"✅ Generated using {msg}") # Tells you which model worked!
                     st.table(pd.DataFrame(diet_data))
                 except Exception as e:
                     st.error(f"Failed to parse AI response: {e}")
-                    st.write("Raw Output:", raw_data)
             else:
                 st.error(msg)
 
@@ -148,7 +157,7 @@ if run_ai:
             Do not use markdown blocks.
             """
             
-            raw_data, msg = get_gemini_response(api_key, prompt_workout)
+            raw_data, msg = try_google_models(api_key, prompt_workout)
             
             if raw_data:
                 try:
