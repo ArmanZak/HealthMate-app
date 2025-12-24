@@ -11,10 +11,51 @@ try:
     else:
         pass
 except Exception as e:
-    print(f"Configuration Error: {e}")
+    st.error(f"API Key Error: {e}")
 
 # ==========================================
-# PART 1: AI DIET GENERATOR
+# PART 1: HEALTH SCORE CALCULATION
+# ==========================================
+def calculate_health_score(bmi, steps, sleep, heart_rate):
+    """
+    Calculates a simple health score (0-100)
+    """
+    score = 80 # Base score
+    
+    # Steps Adjustment
+    if steps > 10000: score += 10
+    elif steps < 5000: score -= 10
+    
+    # Sleep Adjustment
+    if 7 <= sleep <= 9: score += 10
+    elif sleep < 6: score -= 10
+    
+    # BMI Adjustment
+    if 18.5 <= bmi <= 25: score += 5
+    else: score -= 5
+    
+    # Ensure 0-100 range
+    return int(max(0, min(score, 100)))
+
+# ==========================================
+# PART 2: HISTORY TRACKER
+# ==========================================
+def get_user_history(name):
+    """
+    Generates dummy history data so the graph doesn't crash.
+    """
+    today = datetime.now()
+    dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+    
+    data = {
+        "Date": list(reversed(dates)),
+        "Calories": [2100, 2300, 1950, 2200, 2400, 2150, 2000],
+        "Weight (kg)": [70.5, 70.4, 70.3, 70.2, 70.1, 70.0, 69.8]
+    }
+    return pd.DataFrame(data)
+
+# ==========================================
+# PART 3: AI DIET GENERATOR
 # ==========================================
 def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, activity):
     # Math for Calories
@@ -71,7 +112,7 @@ def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, act
         }), f"❌ AI DIET FAILED: {str(e)}", 0
 
 # ==========================================
-# PART 2: AI WORKOUT GENERATOR
+# PART 4: AI WORKOUT GENERATOR
 # ==========================================
 def generate_workout_plan(name, age, gender, weight, height, goal):
     prompt = f"""
@@ -101,40 +142,3 @@ def generate_workout_plan(name, age, gender, weight, height, goal):
             "Focus Area": ["AI Connection Failed"], 
             "Exercises": [f"Error: {str(e)}"]
         })
-
-# ==========================================
-# PART 3: HISTORY TRACKER
-# ==========================================
-def get_user_history(name):
-    today = datetime.now()
-    dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-    data = {
-        "Date": list(reversed(dates)),
-        "Calories": [2100, 2300, 1950, 2200, 2400, 2150, 2000],
-        "Weight (kg)": [70.5, 70.4, 70.3, 70.2, 70.1, 70.0, 69.8]
-    }
-    return pd.DataFrame(data)
-
-# ==========================================
-# PART 4: HEALTH SCORE (This is what you were missing!)
-# ==========================================
-def calculate_health_score(bmi, steps, sleep, heart_rate):
-    """
-    Calculates a simple health score (0-100)
-    """
-    score = 80 # Base score
-    
-    # 1. Steps Adjustment
-    if steps > 10000: score += 10
-    elif steps < 5000: score -= 10
-    
-    # 2. Sleep Adjustment
-    if 7 <= sleep <= 9: score += 10
-    elif sleep < 6: score -= 10
-    
-    # 3. BMI Adjustment
-    if 18.5 <= bmi <= 25: score += 5
-    else: score -= 5
-    
-    # Ensure 0-100 range
-    return max(0, min(score, 100))
