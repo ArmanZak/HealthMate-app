@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from health_engine import * # --- PAGE SETUP ---
+from health_engine import generate_smart_diet, generate_workout_plan, get_user_history
 st.set_page_config(page_title="HealthMeta AI", layout="wide", page_icon="🧬")
 
 st.title("🧬 HealthMeta")
@@ -122,4 +122,5 @@ with tab4:
     if hist_df is not None:
         st.dataframe(hist_df)
     else:
+
         st.write("No previous records found.")
