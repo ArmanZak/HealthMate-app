@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import json
+from datetime import datetime, timedelta
 
 # 1. CONFIGURE THE AI KEY
 try:
@@ -115,3 +116,22 @@ def generate_workout_plan(name, age, gender, weight, height, goal):
             "Focus Area": ["AI Connection Failed"], 
             "Exercises": [str(e)]
         })
+
+# ==========================================
+# PART 3: HISTORY TRACKER (This was missing!)
+# ==========================================
+def get_user_history(name):
+    """
+    Generates dummy history data so the graph doesn't crash.
+    """
+    # Create fake dates
+    today = datetime.now()
+    dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+    
+    # Fake history data for demo
+    data = {
+        "Date": list(reversed(dates)),
+        "Calories": [2100, 2300, 1950, 2200, 2400, 2150, 2000],
+        "Weight (kg)": [70.5, 70.4, 70.3, 70.2, 70.1, 70.0, 69.8]
+    }
+    return pd.DataFrame(data)
