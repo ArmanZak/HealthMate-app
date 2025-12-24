@@ -39,7 +39,7 @@ if run_ai:
     col3.metric("Steps", steps)
     col4.metric("Sleep", f"{sleep}h")
     
-    # 2. THE GRAPH (Restored)
+    # 2. GRAPH
     st.markdown("### 📈 Your Progress")
     hist_df = get_user_history(name)
     st.line_chart(hist_df.set_index("Date")[["Weight (kg)", "Calories"]])
@@ -49,7 +49,7 @@ if run_ai:
     tab1, tab2 = st.tabs(["🥗 AI Diet Plan", "💪 AI Workout Plan"])
     
     with tab1:
-        with st.spinner("AI is thinking..."):
+        with st.spinner("Talking to Google AI..."):
             df_diet, msg, cals = generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, activity)
             if "Error" in msg:
                 st.error(msg)
@@ -58,9 +58,9 @@ if run_ai:
                 st.table(df_diet)
             
     with tab2:
-        with st.spinner("AI is thinking..."):
+        with st.spinner("Building Workout..."):
             df_workout = generate_workout_plan(name, age, gender, weight, height, goal)
             st.table(df_workout)
 
 else:
-    st.info("👈 Click 'Run AI Analysis' to see your health dashboard.")
+    st.info("👈 Click 'Run AI Analysis' to generate your dashboard.")
