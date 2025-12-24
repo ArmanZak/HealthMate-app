@@ -5,16 +5,38 @@ import json
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. SECURE CONNECTION
+# 1. SECURE CONFIGURATION
 # ==========================================
 try:
-    # This grabs the key you saved in the Streamlit "Secrets" menu
     if "GOOGLE_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     else:
         st.error("🚨 Missing API Key. Please add GOOGLE_API_KEY to Streamlit Secrets.")
 except Exception as e:
     st.error(f"Configuration Error: {e}")
+
+# ==========================================
+# HELPER: ROBUST MODEL FETCHER
+# ==========================================
+def get_model_response(prompt):
+    """
+    Tries multiple model versions to ensure it never fails with a 404.
+    """
+    # List of models to try in order of preference
+    models_to_try = ['gemini-1.5-flash', 'gemini-pro', 'models/gemini-pro']
+    
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            last_error = e
+            continue # Try the next model
+    
+    # If all fail, raise the last error
+    raise last_error
 
 # ==========================================
 # 2. HEALTH SCORE
@@ -43,16 +65,14 @@ def get_user_history(name):
     return pd.DataFrame(data)
 
 # ==========================================
-# 4. AI DIET (Using gemini-pro)
+# 4. AI DIET GENERATOR
 # ==========================================
 def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, activity):
-    # Quick Math
     if gender == "Male": bmr = 10 * weight + 6.25 * height - 5 * age + 5
     else: bmr = 10 * weight + 6.25 * height - 5 * age - 161
     tdee = bmr * 1.2
     target_calories = int(tdee - 500) if goal == "Weight Loss" else int(tdee)
 
-    # Prompt
     prompt = f"""
     Act as a nutritionist. Create a daily diet for: {age}y, {gender}, {weight}kg.
     Preference: {veg_nonveg}. Goal: {goal}. Calories: {target_calories}.
@@ -62,17 +82,16 @@ def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, act
     """
     
     try:
-        # Switched to 'gemini-pro' to fix the "Model not found" error
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        text = response.text.replace("```json", "").replace("```", "").strip()
-        data = json.loads(text)
+        # Use our new fail-safe function
+        raw_text = get_model_response(prompt)
+        clean_text = raw_text.replace("```json", "").replace("```", "").strip()
+        data = json.loads(clean_text)
         return pd.DataFrame(data), f"✅ Success! ({target_calories} kcal)", target_calories
     except Exception as e:
         return pd.DataFrame(), f"AI Error: {str(e)}", 0
 
 # ==========================================
-# 5. AI WORKOUT (Using gemini-pro)
+# 5. AI WORKOUT GENERATOR
 # ==========================================
 def generate_workout_plan(name, age, gender, weight, height, goal):
     prompt = f"""
@@ -82,11 +101,10 @@ def generate_workout_plan(name, age, gender, weight, height, goal):
     Example: [{{"Day": "Mon", "Focus Area": "Chest", "Exercises": "Pushups 3x10"}}]
     """
     try:
-        # Switched to 'gemini-pro'
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        text = response.text.replace("```json", "").replace("```", "").strip()
-        data = json.loads(text)
+        # Use our new fail-safe function
+        raw_text = get_model_response(prompt)
+        clean_text = raw_text.replace("```json", "").replace("```", "").strip()
+        data = json.loads(clean_text)
         return pd.DataFrame(data)
     except Exception as e:
         return pd.DataFrame({"Day": ["Error"], "Focus Area": ["Connection Failed"], "Exercises": [str(e)]})
