@@ -1,110 +1,136 @@
-import streamlit as st
+import requests
 import pandas as pd
-import google.generativeai as genai
 import json
 from datetime import datetime, timedelta
 
-# ==========================================
-# 1. SECURE CONFIGURATION
-# ==========================================
-try:
-    if "GOOGLE_API_KEY" in st.secrets:
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    else:
-        st.error("🚨 Missing API Key. Please add GOOGLE_API_KEY to Streamlit Secrets.")
-except Exception as e:
-    st.error(f"Configuration Error: {e}")
+# =========================
+# OLLAMA CHECK
+# =========================
+def ollama_available():
+    try:
+        requests.get("http://localhost:11434", timeout=2)
+        return True
+    except:
+        return False
 
-# ==========================================
-# HELPER: ROBUST MODEL FETCHER
-# ==========================================
-def get_model_response(prompt):
-    """
-    Tries multiple model versions to ensure it never fails with a 404.
-    """
-    # List of models to try in order of preference
-    models_to_try = ['gemini-1.5-flash', 'gemini-pro', 'models/gemini-pro']
-    
-    last_error = None
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            last_error = e
-            continue # Try the next model
-    
-    # If all fail, raise the last error
-    raise last_error
+def call_ollama(prompt):
+    res = requests.post(
+        "http://localhost:11434/api/generate",
+        json={
+            "model": "llama3",
+            "prompt": prompt,
+            "stream": False
+        },
+        timeout=120
+    )
+    res.raise_for_status()
+    return res.json()["response"]
 
-# ==========================================
-# 2. HEALTH SCORE
-# ==========================================
-def calculate_health_score(bmi, steps, sleep, heart_rate):
+# =========================
+# CORE HEALTH LOGIC
+# =========================
+def calculate_bmi(weight, height_cm):
+    h = height_cm / 100
+    return round(weight / (h * h), 2)
+
+def target_bmi(goal):
+    return {
+        "Lose Weight": 22,
+        "Gain Weight": 23.5,
+        "Bulking": 24.5
+    }[goal]
+
+def health_score(bmi, steps, sleep):
     score = 80
     if steps > 10000: score += 10
-    elif steps < 5000: score -= 10
+    if steps < 5000: score -= 10
     if 7 <= sleep <= 9: score += 10
-    elif sleep < 6: score -= 10
+    if sleep < 6: score -= 10
     if 18.5 <= bmi <= 25: score += 5
     else: score -= 5
-    return int(max(0, min(score, 100)))
+    return max(0, min(score, 100))
 
-# ==========================================
-# 3. HISTORY TRACKER
-# ==========================================
-def get_user_history(name):
+def risk_level(score):
+    if score >= 75: return "Low"
+    if score >= 50: return "Medium"
+    return "High"
+
+def attention_needed(bmi, steps, sleep):
+    issues = []
+    if sleep < 6: issues.append("Low sleep")
+    if steps < 4000: issues.append("Low activity")
+    if bmi < 18.5 or bmi > 30: issues.append("Unhealthy BMI")
+    return issues
+
+# =========================
+# HISTORY (MOCK)
+# =========================
+def get_history():
     today = datetime.now()
-    dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-    data = {
-        "Date": list(reversed(dates)),
-        "Calories": [2100, 2300, 1950, 2200, 2400, 2150, 2000],
-        "Weight (kg)": [70.5, 70.4, 70.3, 70.2, 70.1, 70.0, 69.8]
-    }
-    return pd.DataFrame(data)
+    days = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+    return pd.DataFrame({
+        "Date": list(reversed(days)),
+        "Weight": [70.5,70.4,70.3,70.2,70.1,70.0,69.8],
+        "Health Score": [72,74,75,76,78,80,82]
+    })
 
-# ==========================================
-# 4. AI DIET GENERATOR
-# ==========================================
-def generate_smart_diet(name, age, gender, weight, height, veg_nonveg, goal, activity):
-    if gender == "Male": bmr = 10 * weight + 6.25 * height - 5 * age + 5
-    else: bmr = 10 * weight + 6.25 * height - 5 * age - 161
-    tdee = bmr * 1.2
-    target_calories = int(tdee - 500) if goal == "Weight Loss" else int(tdee)
+# =========================
+# BACKUP PLANS
+# =========================
+def backup_diet(goal):
+    if goal == "Lose Weight":
+        return pd.DataFrame([
+            {"Meal":"Breakfast","Plan":"Oats + fruits","Calories":300},
+            {"Meal":"Lunch","Plan":"Dal + rice","Calories":450},
+            {"Meal":"Dinner","Plan":"Salad + soup","Calories":350}
+        ])
+    if goal == "Gain Weight":
+        return pd.DataFrame([
+            {"Meal":"Breakfast","Plan":"Milk + banana","Calories":450},
+            {"Meal":"Lunch","Plan":"Rice + paneer","Calories":650},
+            {"Meal":"Dinner","Plan":"Roti + curd","Calories":550}
+        ])
+    return pd.DataFrame([
+        {"Meal":"Breakfast","Plan":"Eggs / Paneer","Calories":500},
+        {"Meal":"Lunch","Plan":"Rice + chicken","Calories":700},
+        {"Meal":"Dinner","Plan":"Protein bowl","Calories":600}
+    ])
 
+def backup_workout(goal):
+    if goal == "Lose Weight":
+        return pd.DataFrame([
+            {"Day":"Mon","Workout":"Cardio + Core"},
+            {"Day":"Wed","Workout":"HIIT"},
+            {"Day":"Fri","Workout":"Brisk Walk"}
+        ])
+    if goal == "Gain Weight":
+        return pd.DataFrame([
+            {"Day":"Mon","Workout":"Upper Body"},
+            {"Day":"Wed","Workout":"Lower Body"},
+            {"Day":"Fri","Workout":"Full Body"}
+        ])
+    return pd.DataFrame([
+        {"Day":"Mon","Workout":"Chest + Triceps"},
+        {"Day":"Tue","Workout":"Back + Biceps"},
+        {"Day":"Thu","Workout":"Legs"}
+    ])
+
+# =========================
+# AI PLANS (OPTIONAL)
+# =========================
+def ai_diet(age, gender, weight, height, goal):
     prompt = f"""
-    Act as a nutritionist. Create a daily diet for: {age}y, {gender}, {weight}kg.
-    Preference: {veg_nonveg}. Goal: {goal}. Calories: {target_calories}.
-    Return ONLY a JSON array with keys: "Meal", "Option A", "Option B", "Calories".
-    Do not use markdown.
-    Example: [{{"Meal": "Breakfast", "Option A": "Oats", "Option B": "Eggs", "Calories": 300}}]
+    Create a one-day diet plan for {age}y {gender}, {weight}kg.
+    Goal: {goal}
+    Return ONLY JSON list with keys Meal, Plan, Calories.
     """
-    
-    try:
-        # Use our new fail-safe function
-        raw_text = get_model_response(prompt)
-        clean_text = raw_text.replace("```json", "").replace("```", "").strip()
-        data = json.loads(clean_text)
-        return pd.DataFrame(data), f"✅ Success! ({target_calories} kcal)", target_calories
-    except Exception as e:
-        return pd.DataFrame(), f"AI Error: {str(e)}", 0
+    text = call_ollama(prompt)
+    return pd.DataFrame(json.loads(text))
 
-# ==========================================
-# 5. AI WORKOUT GENERATOR
-# ==========================================
-def generate_workout_plan(name, age, gender, weight, height, goal):
+def ai_workout(gender, goal):
     prompt = f"""
-    Act as a trainer. Create a weekly workout for: {gender}, {goal}.
-    Return ONLY a JSON array with keys: "Day", "Focus Area", "Exercises".
-    Do not use markdown.
-    Example: [{{"Day": "Mon", "Focus Area": "Chest", "Exercises": "Pushups 3x10"}}]
+    Create weekly workout for {gender}, goal {goal}.
+    Return ONLY JSON list with Day, Workout.
     """
-    try:
-        # Use our new fail-safe function
-        raw_text = get_model_response(prompt)
-        clean_text = raw_text.replace("```json", "").replace("```", "").strip()
-        data = json.loads(clean_text)
-        return pd.DataFrame(data)
-    except Exception as e:
-        return pd.DataFrame({"Day": ["Error"], "Focus Area": ["Connection Failed"], "Exercises": [str(e)]})
+    text = call_ollama(prompt)
+    return pd.DataFrame(json.loads(text))
