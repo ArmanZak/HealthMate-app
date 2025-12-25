@@ -75,4 +75,56 @@ with tab1:
 
         st.markdown("### 🎯 Goal Progress")
         st.progress(progress)
-        st.caption(f"You are **{progress}%**
+        st.caption(f"You are **{progress}%** towards your goal")
+
+        if attention:
+            st.warning("⚠ Attention Needed: " + ", ".join(attention))
+        else:
+            st.success("✅ No immediate health risks detected")
+    else:
+        st.info("👉 Enter details in sidebar and click **Run Analysis**")
+
+# =====================================================
+# NUTRITION TAB
+# =====================================================
+with tab2:
+    if run:
+        st.subheader("🥗 Nutrition Plan")
+
+        if ollama_available():
+            st.info("Using Offline AI Engine")
+            st.table(ai_diet(age, gender, weight, height, goal))
+        else:
+            st.warning("AI engine not detected. Showing backup nutrition plan.")
+            st.table(backup_diet(goal))
+    else:
+        st.info("Run analysis to generate your nutrition plan.")
+
+# =====================================================
+# WORKOUT TAB
+# =====================================================
+with tab3:
+    if run:
+        st.subheader("💪 Workout Plan")
+
+        if ollama_available():
+            st.info("Using Offline AI Engine")
+            st.table(ai_workout(gender, goal))
+        else:
+            st.warning("AI engine not detected. Showing backup workout plan.")
+            st.table(backup_workout(goal))
+    else:
+        st.info("Run analysis to generate your workout plan.")
+
+# =====================================================
+# HISTORY TAB
+# =====================================================
+with tab4:
+    st.subheader("📜 Progress History")
+
+    history_df = load_history(name)
+
+    if not history_df.empty:
+        st.dataframe(history_df, use_container_width=True)
+    else:
+        st.info("No history available yet. Start tracking daily.")
